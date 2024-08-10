@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Upload Excel File</title>
+</head>
+
+<body>
+    <h1>Upload Excel File to Modify</h1>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".xlsx" required>
+
+        <label for="term_num"> 
+            Select Term Number:
+        </label>
+
+        <select name="term_num">
+            <option value="1">1</option>
+            <option value="2">2</option>
+        </select>
+        
+        <input type="submit" value="Upload">
+    </form>
+
+
+</body>
+
+</html>

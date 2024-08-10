@@ -1,11 +1,12 @@
 import re
-
+from flask import Flask, render_template, request, send_file
 import openpyxl as xl
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
+import io
 
-wb = xl.load_workbook("View_My_Courses.xlsx")
-sheet = wb['View My Courses']
+app = Flask(__name__)
+
 new_schedule = Workbook()
 schedule_sheet = new_schedule.active
 days_of_week = ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -21,16 +22,24 @@ term1 = {}
 term2 = {}
 
 
+def load_schedule(file_name):
+    wb = xl.load_workbook(file_name)
+    sheet = wb["View My Courses"]
+    return sheet
+
+
+# adjusts each cell's height and width
 def create_calendar_measurements():
+    create_headings()
     for row in range(len(times) + 1):
-        schedule_sheet.row_dimensions[row].height = 20
+        schedule_sheet.row_dimensions[row].height = 30
 
     for col in range(1, 7):
         col_letter = chr(64 + col)
-        schedule_sheet.column_dimensions[col_letter].width = 20
+        schedule_sheet.column_dimensions[col_letter].width = 25
 
     for col in range(1, 7):
-        for row in range(1, len(times) + 1):
+        for row in range(1, len(times) + 2):
             cell = schedule_sheet.cell(row, col)
             cell.alignment = Alignment(wrap_text=True)
 
@@ -44,7 +53,13 @@ def create_headings():
     schedule_sheet.cell(1, 6).value = "Friday"
 
     for row_num, time in enumerate(times, start=2):
-        schedule_sheet.cell(row=row_num, column=1, value=time)
+        cell = schedule_sheet.cell(row=row_num, column=1)
+        cell.value = time
+
+
+def align_top():
+    for row_num in range(1, len(times) + 2):
+        schedule_sheet.cell(row_num, 1).alignment = Alignment("general", "top")
 
 
 # examines meeting day cell on excel sheets and extracts the meeting days as a list
@@ -73,15 +88,9 @@ def return_day_column(day):
         return 6
 
 
-def find_empty_row(column):
-    for row in range(1, schedule_sheet.max_row + 1):
-        if schedule_sheet.cell(row, column).value == None:
-            return row
-    return schedule_sheet.max_row + 1
-
-
-def place_course_in_calendar(class_name, days):
-    meeting_day_value = get_meeting_day_value(class_name)
+# places each course in the calendar based on its days and time
+def place_course_in_calendar(class_name, days, sheet):
+    meeting_day_value = get_meeting_day_value(class_name, sheet)
     class_times = get_class_times(meeting_day_value)
     if days and class_times is not None:
         start_time = class_times[0]
@@ -92,14 +101,15 @@ def place_course_in_calendar(class_name, days):
 {start_time} - {end_time}'''
         for day in days:
             column = return_day_column(day)
-            # row = find_empty_row(column)
-            # schedule_sheet.cell(row, column).value = class_name
-            schedule_sheet.merge_cells(start_row=start_row, start_column=column, end_row=end_row - 1, end_column=column)
-            cell = schedule_sheet.cell(row=start_row, column=column, value=title)
+            schedule_sheet.merge_cells(
+                start_row=start_row, start_column=column, end_row=end_row - 1, end_column=column)
+            cell = schedule_sheet.cell(
+                row=start_row, column=column, value=title)
             cell.alignment = Alignment(vertical='center', horizontal='center')
 
 
-def get_meeting_day_value(class_name):
+# returns meeting day value of the class
+def get_meeting_day_value(class_name, sheet):
     for row in range(4, sheet.max_row + 1):
         if class_name == sheet.cell(row, 5).value:
             return sheet.cell(row, 8).value
@@ -115,7 +125,7 @@ def find_term(meeting_day_value):
             return 2
 
 
-def create_term_dicts():
+def create_term_dicts(sheet):
     for row in range(4, sheet.max_row + 1):
         section_name = sheet.cell(row, 5).value
         days = find_class_days(sheet.cell(row, 8).value)
@@ -141,14 +151,56 @@ def get_class_times(meeting_day_value):
         return None
 
 
-create_headings()
-create_term_dicts()
-print(get_meeting_day_value("MATH_V 200-102 - Calculus III"))
-print(get_class_times("2024-09-03 - 2024-12-05 | Tue Thu | 11:00 a.m. - 12:30 p.m. | SCRF-Floor 1-Room 100"))
+def create_schedule(file_name, term_num):
+    sheet = load_schedule(file_name)
+    create_term_dicts(sheet)
 
-for school_class in term1:
-    if school_class is not None:
-        place_course_in_calendar(school_class, term1.get(school_class))
+    if term_num == 1:
+        term_num = term1
+    else:
+        term_num = term2
 
-create_calendar_measurements()
-new_schedule.save("new-schedule.xlsx")
+    for school_class in term_num:
+        if school_class is not None:
+            place_course_in_calendar(
+                school_class, term_num.get(school_class), sheet)
+
+    create_calendar_measurements()
+    align_top()
+    new_schedule.save("new-schedule.xlsx")
+
+
+@app.route('/')
+def index():
+    return render_template('ubc-excel-to-schedule.html')
+
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    global new_schedule, schedule_sheet
+
+    if 'file' not in request.files:
+        return 'No file part', 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return 'No selected file', 400
+    
+    new_schedule = Workbook()
+    schedule_sheet = new_schedule.active
+    
+    term_num = int(request.form['term_num'])
+   
+    if not ("View_My_Courses") in file.filename:
+        return "Excel file must have View_My_Courses as the name. Press the back arrow to resubmit an excel file."
+    create_schedule(file, term_num)
+
+    output = io.BytesIO()
+    new_schedule.save(output)
+    output.seek(0)
+
+    return send_file(output, download_name='modified_term' + str(term_num) + "schedule.xlsx", as_attachment=True)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
