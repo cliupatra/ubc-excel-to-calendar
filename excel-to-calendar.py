@@ -1,11 +1,12 @@
 import re
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, flash, get_flashed_messages, redirect, url_for
 import openpyxl as xl
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
 import io
 
 app = Flask(__name__)
+app.secret_key = "123"
 
 new_schedule = Workbook()
 schedule_sheet = new_schedule.active
@@ -185,15 +186,21 @@ def upload_file():
     file = request.files['file']
     if file.filename == '':
         return 'No selected file', 400
-    
+
     new_schedule = Workbook()
     schedule_sheet = new_schedule.active
-    
+
     term_num = int(request.form['term_num'])
-   
+
     if not ("View_My_Courses") in file.filename:
-        return "Excel file must have View_My_Courses as the name. Press the back arrow to resubmit an excel file."
-    create_schedule(file, term_num)
+        flash("Excel file must have 'View_My_Courses' as the name. Please try again.")
+        return redirect(url_for('index'))
+
+    try:
+        create_schedule(file, term_num)
+    except KeyError:
+        flash("The Excel file sheet must be named 'View My Courses'. Try re-downloading the Excel file from Workday.")
+        return redirect(url_for('index'))
 
     output = io.BytesIO()
     new_schedule.save(output)

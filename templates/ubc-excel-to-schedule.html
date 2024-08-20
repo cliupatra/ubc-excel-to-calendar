@@ -3,26 +3,104 @@
 
 <head>
     <title>Upload Excel File</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #E6F0FF;
+        }
+
+        .container {
+            text-align: center;
+            padding: 20px;
+            border: 1px solid #cccccc;
+            border-radius: 10px;
+            background-color: #FFFFFF;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .instructions {
+            text-align: left;
+            margin-bottom: 25px;
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-left: 5px solid #007BFF;
+            border-radius: 5px;
+        }
+
+        #error-message {
+            color: red;
+            margin-bottom: 10px;
+        }
+
+        form {
+            margin-top: 20px;
+        }
+
+        select,
+        input[type="file"],
+        input[type="submit"] {
+            margin-top: 10px;
+            padding: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+    </style>
 </head>
 
 <body>
-    <h1>Upload Excel File to Modify</h1>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".xlsx" required>
+    <div class="container">
 
-        <label for="term_num"> 
-            Select Term Number:
-        </label>
+        <h1>Upload Excel File to Modify</h1>
+        <div class="instructions">
+            <p><strong>Instructions:</strong></p>
+            <ul>
+                <li>Download your student schedule as an Excel file from Workday.</li>
+                <li>Upload that file and choose the appropriate term number from the dropdown.</li>
+                <li>Click the "Upload" button to submit the file.</li>
+                <li>A student schedule will be automatically downloaded.</li>
+            </ul>
+        </div>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div id="error-message">
+            {% for message in messages %}
+            <p>{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
 
-        <select name="term_num">
-            <option value="1">1</option>
-            <option value="2">2</option>
-        </select>
-        
-        <input type="submit" value="Upload">
-    </form>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+            <input id="file-input" type="file" name="file" accept=".xlsx" required>
 
+            <label>
+                Select Term Number:
+            </label>
+            <select name="term_num">
+                <option value="1">1</option>
+                <option value="2">2</option>
+            </select>
 
+            <input type="submit" value="Upload">
+        </form>
+    </div>
+
+    <script>
+        // Removes the error message when a new file is selected
+        document.getElementById('file-input').addEventListener('change', function () {
+            const errorMessage = document.getElementById('error-message');
+            if (errorMessage) {
+                errorMessage.remove();
+            }
+        });
+    </script>
 </body>
 
 </html>
